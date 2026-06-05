@@ -123,7 +123,7 @@ class File extends Filesystem implements FileInterface
     /**
      * @return string
      */
-    public function getFullPath(): string
+    public function getFullPath(): ?string
     {
         return $this->filePath;
     }

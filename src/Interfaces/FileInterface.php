@@ -18,7 +18,7 @@ interface FileInterface
 
     public function getContent(): string;
 
-    public function getFullPath(): string;
+    public function getFullPath(): ?string;
 
     public function getName(): string;
 

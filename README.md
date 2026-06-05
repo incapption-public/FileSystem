@@ -9,7 +9,7 @@ composer require incapption/file-system
 
 ## Requirements
 ```bash 
-PHP >= 7.2
+PHP >= 8.1
 ```
 
 ## How to use

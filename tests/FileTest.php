@@ -5,145 +5,187 @@ namespace Incapption\FileSystem\Tests;
 use Incapption\FileSystem\File;
 use League\Flysystem\FilesystemException;
 use League\Flysystem\Local\LocalFilesystemAdapter;
-use League\Flysystem\UnableToDeleteFile;
 use League\Flysystem\UnableToReadFile;
 use PHPUnit\Framework\TestCase;
 
 class FileTest extends TestCase
 {
-    public function __construct()
-    {
-        parent::__construct();
+    private LocalFilesystemAdapter $adapter;
 
-        $this->adapter = new LocalFilesystemAdapter(
-            dirname(__DIR__)
-        );
+    private string $storageDir;
+
+    private string $testStorageDir;
+
+    protected function setUp(): void
+    {
+        $this->storageDir = dirname(__DIR__) . '/tests/Storage';
+        $this->testStorageDir = dirname(__DIR__) . '/tests/TestStorage';
+
+        $this->adapter = new LocalFilesystemAdapter(dirname(__DIR__));
     }
 
-    public static function tearDownAfterClass(): void
+    protected function tearDown(): void
     {
-        $testFiles = glob('./tests/TestStorage/*.*');
-
-        foreach ($testFiles as $testFile)
-        {
-            if (is_file($testFile) && basename($testFile) !== ".gitkeep")
-            {
-                unlink($testFile);
+        foreach (glob($this->testStorageDir . '/**/*') as $file) {
+            if (is_file($file) && basename($file) !== '.gitkeep') {
+                unlink($file);
             }
         }
 
-        $testFiles = glob('./tests/TestStorage/Subfolder/*.*');
-
-        foreach ($testFiles as $testFile)
-        {
-            if (is_file($testFile) && basename($testFile) !== ".gitkeep")
-            {
-                unlink($testFile);
+        foreach (glob($this->testStorageDir . '/*') as $file) {
+            if (is_file($file) && basename($file) !== '.gitkeep') {
+                unlink($file);
             }
         }
     }
 
     /** @test */
-    public function write_a_file()
+    public function write_a_file(): void
     {
         $file = new File($this->adapter, null);
-        $file->__write('./tests/TestStorage/test1.jpg', file_get_contents('./tests/Storage/test.jpg'));
+        $file->__write('./tests/TestStorage/test.jpg', file_get_contents($this->storageDir . '/test.jpg'));
 
-        $this->assertFileExists('./tests/TestStorage/test1.jpg');
+        $this->assertFileExists($this->testStorageDir . '/test.jpg');
+        $this->assertEquals('test.jpg', $file->getName());
+        $this->assertEquals('jpg', $file->getExtension());
+        $this->assertTrue($file->getSize() > 0);
     }
 
     /** @test */
-    public function write_a_file_as_stream()
+    public function write_a_file_as_stream(): void
     {
         $file = new File($this->adapter, null);
-        $file->__writeStream('./tests/TestStorage/5MB_streamed.bin', fopen('./tests/Storage/5MB.bin', 'r'));
+        $file->__writeStream('./tests/TestStorage/5MB_streamed.bin', fopen($this->storageDir . '/5MB.bin', 'r'));
 
-        $this->assertFileExists('./tests/TestStorage/5MB_streamed.bin');
+        $this->assertFileExists($this->testStorageDir . '/5MB_streamed.bin');
+        $this->assertEquals('5MB_streamed.bin', $file->getName());
+        $this->assertTrue($file->getSize() > 0);
     }
 
     /** @test */
-    public function instantiate_a_file()
+    public function instantiate_a_file(): void
     {
-        $file = new File($this->adapter, './tests/TestStorage/5MB_streamed.bin');
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/test.jpg', file_get_contents($this->storageDir . '/test.jpg'));
 
-        $this->assertEquals('5MB_streamed.bin', $file->toArray()['file_name']);
-        $this->assertEquals('application/octet-stream', $file->toArray()['file_mime_type']);
-        $this->assertEquals('bin', $file->toArray()['file_extension']);
+        $file = new File($this->adapter, './tests/TestStorage/test.jpg');
+        $data = $file->toArray();
 
-        $this->assertNotEmpty($file->toArray()['full_path']);
-        $this->assertNotEmpty($file->toArray()['file_size']);
-        $this->assertNotEmpty($file->toArray()['file_last_modified']);
-        $this->assertNotEmpty($file->toArray()['directory_name']);
+        $this->assertEquals('test.jpg', $data['file_name']);
+        $this->assertEquals('image/jpeg', $data['file_mime_type']);
+        $this->assertEquals('jpg', $data['file_extension']);
+        $this->assertNotEmpty($data['full_path']);
+        $this->assertNotEmpty($data['file_size']);
+        $this->assertNotEmpty($data['file_last_modified']);
+        $this->assertNotEmpty($data['directory_name']);
     }
 
     /** @test */
-    public function move_a_file()
+    public function toJson_returns_valid_json(): void
     {
-        $file = new File($this->adapter, './tests/TestStorage/5MB_streamed.bin');
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/test.jpg', file_get_contents($this->storageDir . '/test.jpg'));
 
-        $file->__move('./tests/TestStorage/Subfolder/5MB_streamed.bin');
+        $file = new File($this->adapter, './tests/TestStorage/test.jpg');
+        $json = $file->toJson();
 
-        $this->assertFalse(file_exists('tests/TestStorage/5MB_streamed.bin'));
-        $this->assertTrue(file_exists('tests/TestStorage/Subfolder/5MB_streamed.bin'));
-        $this->assertEquals(1, substr_count($file->toArray()['full_path'], 'tests/TestStorage/Subfolder'));
-        $this->assertEquals(1, substr_count($file->toArray()['directory_name'], 'tests/TestStorage/Subfolder'));
+        $this->assertJson($json);
+        $decoded = json_decode($json, true);
+        $this->assertArrayHasKey('file_name', $decoded);
+        $this->assertArrayHasKey('file_size', $decoded);
     }
 
     /** @test */
-    public function rename_a_file()
+    public function move_a_file(): void
     {
-        $file = new File($this->adapter, './tests/TestStorage/Subfolder/5MB_streamed.bin');
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/move_me.bin', file_get_contents($this->storageDir . '/5MB.bin'));
 
-        $file->__rename('5MB_streamed_new_name.bin');
+        $file = new File($this->adapter, './tests/TestStorage/move_me.bin');
+        $file->__move('./tests/TestStorage/Subfolder/move_me.bin');
 
-        $this->assertFalse(file_exists('tests/TestStorage/Subfolder/5MB_streamed.bin'));
-        $this->assertTrue(file_exists('tests/TestStorage/Subfolder/5MB_streamed_new_name.bin'));
-
-        $this->assertEquals(1, substr_count($file->toArray()['full_path'], 'tests/TestStorage/Subfolder/5MB_streamed_new_name.bin'));
-
-        $this->assertEquals('5MB_streamed_new_name.bin', $file->toArray()['file_name']);
-        $this->assertEquals('application/octet-stream', $file->toArray()['file_mime_type']);
-        $this->assertEquals('bin', $file->toArray()['file_extension']);
-
+        $this->assertFileDoesNotExist($this->testStorageDir . '/move_me.bin');
+        $this->assertFileExists($this->testStorageDir . '/Subfolder/move_me.bin');
+        $this->assertEquals('./tests/TestStorage/Subfolder/move_me.bin', $file->getFullPath());
+        $this->assertStringContainsString('Subfolder', $file->getDirectoryName());
     }
 
     /** @test */
-    public function copy_a_file()
+    public function rename_a_file(): void
     {
-        $file = new File($this->adapter, './tests/TestStorage/Subfolder/5MB_streamed_new_name.bin');
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/original.bin', file_get_contents($this->storageDir . '/5MB.bin'));
 
-        $file->__copy('./tests/TestStorage/Subfolder/5MB_streamed_copied.bin');
+        $file = new File($this->adapter, './tests/TestStorage/original.bin');
+        $file->__rename('renamed.bin');
 
-        $this->assertTrue(file_exists('tests/TestStorage/Subfolder/5MB_streamed_copied.bin'));
-        $this->assertTrue(file_exists('tests/TestStorage/Subfolder/5MB_streamed_new_name.bin'));
-
-        $this->assertEquals(1, substr_count($file->toArray()['full_path'], 'tests/TestStorage/Subfolder/5MB_streamed_new_name.bin'));
-
-        $this->assertEquals('5MB_streamed_new_name.bin', $file->toArray()['file_name']);
-        $this->assertEquals('application/octet-stream', $file->toArray()['file_mime_type']);
-        $this->assertEquals('bin', $file->toArray()['file_extension']);
-
-        // instantiate copy
-        $file = new File($this->adapter, './tests/TestStorage/Subfolder/5MB_streamed_copied.bin');
-
-        $this->assertEquals(1, substr_count($file->toArray()['full_path'], 'tests/TestStorage/Subfolder/5MB_streamed_copied.bin'));
-
-        $this->assertEquals('5MB_streamed_copied.bin', $file->toArray()['file_name']);
-        $this->assertEquals('application/octet-stream', $file->toArray()['file_mime_type']);
-        $this->assertEquals('bin', $file->toArray()['file_extension']);
+        $this->assertFileDoesNotExist($this->testStorageDir . '/original.bin');
+        $this->assertFileExists($this->testStorageDir . '/renamed.bin');
+        $this->assertEquals('renamed.bin', $file->getName());
+        $this->assertStringNotContainsString('original.bin', $file->getFullPath());
     }
 
     /** @test */
-    public function delete_a_local_file()
+    public function copy_a_file(): void
     {
-        $file = new File($this->adapter, './tests/TestStorage/Subfolder/5MB_streamed_copied.bin');
-        $file->__delete();
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/source.bin', file_get_contents($this->storageDir . '/5MB.bin'));
 
-        $file = new File($this->adapter, './tests/TestStorage/Subfolder/5MB_streamed_new_name.bin');
-        $file->__delete();
+        $file = new File($this->adapter, './tests/TestStorage/source.bin');
+        $file->__copy('./tests/TestStorage/copy.bin');
 
-        $this->assertFalse(file_exists('./tests/TestStorage/Subfolder/5MB_streamed_copied.bin'));
-        $this->assertFalse(file_exists('./tests/TestStorage/Subfolder/5MB_streamed_new_name.bin'));
+        $this->assertFileExists($this->testStorageDir . '/source.bin');
+        $this->assertFileExists($this->testStorageDir . '/copy.bin');
+        $this->assertEquals('source.bin', $file->getName());
+
+        $copy = new File($this->adapter, './tests/TestStorage/copy.bin');
+        $this->assertEquals('copy.bin', $copy->getName());
+        $this->assertEquals($file->getSize(), $copy->getSize());
     }
 
+    /** @test */
+    public function delete_a_file_returns_true(): void
+    {
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/delete_me.bin', file_get_contents($this->storageDir . '/5MB.bin'));
+
+        $file = new File($this->adapter, './tests/TestStorage/delete_me.bin');
+        $result = $file->__delete();
+
+        $this->assertTrue($result);
+        $this->assertNull($file->getFullPath());
+        $this->assertFileDoesNotExist($this->testStorageDir . '/delete_me.bin');
+    }
+
+    /** @test */
+    public function get_content_returns_file_content(): void
+    {
+        $originalContent = file_get_contents($this->storageDir . '/test.jpg');
+
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/test.jpg', $originalContent);
+
+        $file = new File($this->adapter, './tests/TestStorage/test.jpg');
+        $this->assertEquals($originalContent, $file->getContent());
+    }
+
+    /** @test */
+    public function reading_nonexistent_file_throws_exception(): void
+    {
+        $this->expectException(FilesystemException::class);
+
+        $file = new File($this->adapter, './tests/TestStorage/does_not_exist.bin');
+        $file->getContent();
+    }
+
+    /** @test */
+    public function get_directory_name_returns_correct_path(): void
+    {
+        $file = new File($this->adapter, null);
+        $file->__write('./tests/TestStorage/Subfolder/nested.bin', file_get_contents($this->storageDir . '/5MB.bin'));
+
+        $file = new File($this->adapter, './tests/TestStorage/Subfolder/nested.bin');
+        $this->assertStringContainsString('TestStorage/Subfolder', $file->getDirectoryName());
+        $this->assertStringNotContainsString('nested.bin', $file->getDirectoryName());
+    }
 }
