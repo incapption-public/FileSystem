@@ -102,7 +102,7 @@ $file->__write('user/1/101/images/avatar.jpg', file_get_contents('tmp/uploaded_a
 **Additional composer package**
 ```bash
 # So you can use AwsS3V3Adapter
-composer require league/flysystem-aws-s3-v3:2.4.3
+composer require league/flysystem-aws-s3-v3:3.34.0
 ```
 
 **IAM Permissions**\
@@ -149,7 +149,7 @@ public function __delete(): bool;
 
 public function getContent(): string;
 
-public function getFullPath(): string;
+public function getFullPath(): ?string;
 
 public function getName(): string;
 
@@ -172,11 +172,16 @@ public function toJson(): string;
  */
 ```
 
-### 3. Exceptions
+### 3. Testing
+```bash
+./vendor/bin/phpunit
+```
+
+### 4. Exceptions
 >FilesystemException are thrown if something went wrong
 ```php
 
-### 4. Things to know
+### 5. Things to know
 - If you delete a file, the object gets resetted
 - getExtension() returns the Extension without a leading dot
 - Methods are throwing exception. If no exception is thrown, everything worked fine
